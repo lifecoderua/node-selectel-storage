@@ -290,6 +290,41 @@ upload_file = function (fullLocalPath, hostingPath, callback, additionalHeaders)
 	});
 },
 
+upload_data = function (data, hostingPath, callback, additionalHeaders) {
+	async.waterfall([
+		function(wfCb) {
+			var req = {
+				url: selAuthData.x_storage_url + hostingPath,
+				method: 'PUT',
+				headers: {
+					'X-Auth-Token': selAuthData.x_auth_token,
+					'Content-Length': data.length
+				},
+				body: data
+			};
+			copyHeaders(req, additionalHeaders);
+			request(req, wfCb);
+		}
+	],
+	function(err, data) {
+		if (err || !data) {
+			callback(err, {success: false});
+		} else {
+			if (data.statusCode == 201) {
+				callback(null, {
+					success: true,
+					data: 'ok'
+				});
+			} else {
+				callback(null, {
+					success: false,
+					selectelMessage: data.body
+				});
+			}
+		}
+	});
+},
+
 upload_arh_unpack = function (fullLocalPath, hostingPath, arhFormat, callback, additionalHeaders) {
 	async.waterfall([
 		function(wfCb) {
@@ -532,6 +567,25 @@ exports.uploadFile = function(fullLocalPath, hostingPath, callback, additionalHe
 			},
 			function(callback){
 				upload_file(fullLocalPath, hostingPath, callback, additionalHeaders);
+			}
+		], function (err, results) {
+			if(!err){
+				callback(null, results[1]);
+			}
+		});
+	}
+};
+
+exports.uploadData = function(data, hostingPath, callback, additionalHeaders) {
+	if(selAuthData.is_authorized && (selAuthData.x_expire_auth_token > Date.now())){
+		upload_data(data, hostingPath, callback, additionalHeaders);
+	}else{
+		async.series([
+			function(callback){
+				selAuth(callback);
+			},
+			function(callback){
+				upload_data(data, hostingPath, callback, additionalHeaders);
 			}
 		], function (err, results) {
 			if(!err){
